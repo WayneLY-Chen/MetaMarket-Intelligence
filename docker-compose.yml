@@ -1,0 +1,107 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: market_db
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+
+  gold-worker:
+    build:
+      context: ./scrapers
+      dockerfile: Dockerfile.worker
+    container_name: gold_worker
+    restart: always
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - FETCH_INTERVAL=86400
+    depends_on:
+      - db
+    command: python gold_scraper.py
+
+  currency-worker:
+    build:
+      context: ./scrapers
+      dockerfile: Dockerfile.worker
+    container_name: currency_worker
+    restart: always
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - FETCH_INTERVAL=86400
+    depends_on:
+      - db
+    command: python currency_scraper.py
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: market_backend
+    restart: always
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      PORT: ${PORT}
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./scrapers:/app/scrapers
+    depends_on:
+      - db
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: market_frontend
+    restart: always
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+
+  scraper_stock:
+    build:
+      context: ./scrapers
+      dockerfile: Dockerfile.stock
+    container_name: market_scraper_stock
+    restart: always
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      FETCH_INTERVAL: ${STOCK_FETCH_INTERVAL}
+    depends_on:
+      - db
+
+  scraper_housing:
+    build:
+      context: ./scrapers
+      dockerfile: Dockerfile.housing
+    container_name: market_scraper_housing
+    restart: always
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      FETCH_INTERVAL: ${HOUSING_FETCH_INTERVAL}
+    depends_on:
+      - db
+
+  scraper_sentiment:
+    build:
+      context: ./scrapers
+      dockerfile: Dockerfile.sentiment
+    container_name: market_scraper_sentiment
+    restart: always
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      FETCH_INTERVAL: ${SENTIMENT_FETCH_INTERVAL}
+    depends_on:
+      - db
+
+volumes:
+  postgres_data:
