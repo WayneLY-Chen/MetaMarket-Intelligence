@@ -52,7 +52,7 @@ docker-compose up -d --build
 
 ---
 
-## 🛡️ 實用的 Docker 管理小貼士 | Docker Management Tips
+## 🛡️ 實用的 Docker 管理小提示 | Docker Management Tips
 
 ### 🔍 看它現在有沒有乖乖跑？
 ```powershell
