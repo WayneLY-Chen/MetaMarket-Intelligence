@@ -1,7 +1,7 @@
 const express = require('express');
 const { Pool } = require('pg');
 const cors = require('cors');
-const { exec } = require('child_process');
+const { execFile } = require('child_process');
 const path = require('path');
 require('dotenv').config();
 
@@ -18,17 +18,34 @@ const pool = new Pool({
 });
 
 
+// 股票代號的合法形狀。yfinance 用到的字元就這些：英數、點（2330.TW）、
+// 連字號（BRK-B）、以及指數前綴的插入符號（^TWII）。長度上限 15 綽綽有餘。
+// 這個白名單是把使用者輸入交給子行程之前的最後一道，也是唯一一道防線。
+const SYMBOL_RE = /^[A-Za-z0-9.^-]{1,15}$/;
+
 const triggerScraper = (symbol) => {
   return new Promise((resolve) => {
+    // 白名單先擋。不合法就直接不跑爬蟲——這個參數會進到子行程，寧可少一筆
+    // 資料也不要把沒驗證過的字串往下送。
+    if (typeof symbol !== 'string' || !SYMBOL_RE.test(symbol)) {
+      console.warn(`Rejected scraper symbol (failed whitelist): ${JSON.stringify(symbol)}`);
+      resolve('');
+      return;
+    }
+    // 用 execFile ＋參數陣列，不經過 shell。symbol 永遠是一個獨立的 argv
+    // 項目，就算含有 shell 特殊字元也只會被 Python 當成一個字串參數，
+    // 不可能被解讀成另一條指令（原本用字串內插進 exec 會被 /bin/sh 拆開）。
     // In Docker context, the scraper is in /app/scrapers/stock_scraper.py
-    // Use python3 to execute
-    const cmd = `python3 /app/scrapers/stock_scraper.py --symbol ${symbol}`;
-    exec(cmd, (error, stdout, stderr) => {
-      if (error) {
-        console.error(`Scraper execution error: ${error.message}`);
+    execFile(
+      'python3',
+      ['/app/scrapers/stock_scraper.py', '--symbol', symbol],
+      (error, stdout, stderr) => {
+        if (error) {
+          console.error(`Scraper execution error: ${error.message}`);
+        }
+        resolve(stdout || stderr);
       }
-      resolve(stdout || stderr);
-    });
+    );
   });
 };
 
