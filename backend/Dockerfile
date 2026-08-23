@@ -3,7 +3,13 @@
 FROM node:24-alpine
 
 # Install Python and dependencies for stock scraper
-RUN apk add --no-cache python3 py3-pip build-base python3-dev postgresql-dev
+#
+# tzdata 是必要的，不是可有可無：Alpine 的映像檔（不論 node:18 還是 node:24）
+# 都不含 /usr/share/zoneinfo，而 yfinance 抓台股時要查 Asia/Taipei，查不到就
+# 丟 ZoneInfoNotFoundError 而整筆下載失敗。
+# 這個問題在換 Node 版本之前就存在，只是那時候爬蟲更早就死在 import dotenv，
+# 所以從來沒有人走到這一步。
+RUN apk add --no-cache python3 py3-pip build-base python3-dev postgresql-dev tzdata
 
 # 這裡原本是手寫的三個套件（yfinance pandas psycopg2-binary），跟
 # scrapers/requirements.txt 各自維護，結果就漏了 python-dotenv。
