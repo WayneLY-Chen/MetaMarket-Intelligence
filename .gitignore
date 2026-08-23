@@ -1,0 +1,28 @@
+# 環境變數。這個檔案裡有資料庫密碼，絕對不能進版本控制。
+# 要交接設定請改動 .env.example，那份只放佔位值。
+.env
+.env.*
+!.env.example
+
+# 相依套件
+node_modules/
+
+# 建置產物
+dist/
+build/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# 編輯器與作業系統
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# 記錄檔
+*.log
+npm-debug.log*

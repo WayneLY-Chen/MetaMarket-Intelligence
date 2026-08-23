@@ -23,6 +23,28 @@ const pool = new Pool({
 // 這個白名單是把使用者輸入交給子行程之前的最後一道，也是唯一一道防線。
 const SYMBOL_RE = /^[A-Za-z0-9.^-]{1,15}$/;
 
+// 這幾個上限的存在理由：/api/v1/stocks/trend 是不需要認證的，而只要查一個
+// 資料庫裡還沒有的代號，它就會生一個 python3 子行程出來。合法形狀的代號有
+// 幾千萬種組合（SYMBOL_RE 允許 1~15 個英數字元），攻擊者不必猜中任何真實
+// 代號，只要一直換沒看過的字串，每一個都會落進「資料庫沒有 → 去爬」這條路。
+// 每個子行程都要載入 pandas 與 yfinance，常駐記憶體是百 MB 等級的，幾十個
+// 並行就足以把機器吃掉。
+//
+// 上限訂在 2 是保守值：這個爬蟲是背景補資料用的，慢一點沒關係，但它絕對
+// 不該變成一個「一個 HTTP 請求換一個 Python 行程」的放大器。
+const MAX_CONCURRENT_SCRAPES = 2;
+// yfinance 會對外連線。沒有 timeout 的話，上游一卡住，子行程就永遠不會結束，
+// 而 triggerScraper 是被 await 的——那條 HTTP 請求也跟著永遠掛在那裡。
+const SCRAPER_TIMEOUT_MS = 20000;
+// execFile 預設的 maxBuffer 是 1 MiB，這裡寫出來是為了讓它是一個明確的決定
+// 而不是一個預設值。
+const SCRAPER_MAX_BUFFER = 1024 * 1024;
+
+let runningScrapes = 0;
+// 同一個代號同時被查很多次時，只跑一次。這也擋掉「同一個代號重複請求」這種
+// 最省力的放大手法。
+const inFlightSymbols = new Set();
+
 const triggerScraper = (symbol) => {
   return new Promise((resolve) => {
     // 白名單先擋。不合法就直接不跑爬蟲——這個參數會進到子行程，寧可少一筆
@@ -32,6 +54,31 @@ const triggerScraper = (symbol) => {
       resolve('');
       return;
     }
+
+    if (inFlightSymbols.has(symbol)) {
+      resolve('');
+      return;
+    }
+
+    if (runningScrapes >= MAX_CONCURRENT_SCRAPES) {
+      // 刻意不排隊：排隊只是把記憶體壓力換成無上限的等待佇列，而呼叫端要的
+      // 只是「資料庫裡有什麼就回什麼」。直接放棄這次補資料，請求照樣即時返回。
+      console.warn(`Scraper busy (${runningScrapes} running), skipping symbol: ${symbol}`);
+      resolve('');
+      return;
+    }
+
+    runningScrapes += 1;
+    inFlightSymbols.add(symbol);
+    let settled = false;
+    const done = (value) => {
+      if (settled) return;
+      settled = true;
+      runningScrapes -= 1;
+      inFlightSymbols.delete(symbol);
+      resolve(value);
+    };
+
     // 用 execFile ＋參數陣列，不經過 shell。symbol 永遠是一個獨立的 argv
     // 項目，就算含有 shell 特殊字元也只會被 Python 當成一個字串參數，
     // 不可能被解讀成另一條指令（原本用字串內插進 exec 會被 /bin/sh 拆開）。
@@ -39,11 +86,12 @@ const triggerScraper = (symbol) => {
     execFile(
       'python3',
       ['/app/scrapers/stock_scraper.py', '--symbol', symbol],
+      { timeout: SCRAPER_TIMEOUT_MS, maxBuffer: SCRAPER_MAX_BUFFER },
       (error, stdout, stderr) => {
         if (error) {
           console.error(`Scraper execution error: ${error.message}`);
         }
-        resolve(stdout || stderr);
+        done(stdout || stderr);
       }
     );
   });
@@ -84,7 +132,8 @@ app.get('/api/v1/stocks/trend', async (req, res) => {
     const result = await pool.query(query, params);
     res.json(result.rows);
   } catch (err) {
-    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: err.message } });
+    console.error(err);
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } });
   }
 });
 
@@ -105,7 +154,8 @@ app.get('/api/v1/housing/average-price', async (req, res) => {
     const result = await pool.query(query, params);
     res.json(result.rows);
   } catch (err) {
-    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: err.message } });
+    console.error(err);
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } });
   }
 });
 
@@ -115,7 +165,8 @@ app.get('/api/v1/gold/trend', async (req, res) => {
     const result = await pool.query('SELECT * FROM gold_prices ORDER BY trade_date ASC LIMIT 30');
     res.json(result.rows);
   } catch (err) {
-    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: err.message } });
+    console.error(err);
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } });
   }
 });
 
@@ -131,7 +182,8 @@ app.get('/api/v1/currencies/latest', async (req, res) => {
     `);
     res.json(result.rows);
   } catch (err) {
-    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: err.message } });
+    console.error(err);
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } });
   }
 });
 
@@ -162,7 +214,8 @@ app.get('/api/v1/dashboard/overview', async (req, res) => {
       currencies: currencies.rows
     });
   } catch (err) {
-    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: err.message } });
+    console.error(err);
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } });
   }
 });
 

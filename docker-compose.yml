@@ -10,7 +10,12 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
     ports:
-      - "5432:5432"
+      # 只綁在 loopback。後端與各爬蟲是靠 compose 內部網路以服務名稱 db
+      # 連線的（見 .env 的 DATABASE_URL），完全不需要這個對外的埠對應。
+      # 寫成 "5432:5432" 時 Docker 會綁到主機的所有介面——在 VPS 上就等於
+      # 把資料庫直接開到網際網路。這裡保留埠對應是為了本機還能用 psql /
+      # DBeaver 連進去除錯，只是限制在本機。
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
