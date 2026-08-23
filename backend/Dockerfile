@@ -4,7 +4,15 @@ FROM node:24-alpine
 
 # Install Python and dependencies for stock scraper
 RUN apk add --no-cache python3 py3-pip build-base python3-dev postgresql-dev
-RUN pip3 install --no-cache-dir yfinance pandas psycopg2-binary --break-system-packages
+
+# 這裡原本是手寫的三個套件（yfinance pandas psycopg2-binary），跟
+# scrapers/requirements.txt 各自維護，結果就漏了 python-dotenv。
+# server.js 的 triggerScraper 跑的是 /app/scrapers/stock_scraper.py，而那支的
+# 第 7 行是 `from dotenv import load_dotenv` —— 也就是說這條隨選補資料的路
+# 從來沒有成功執行過，每次都是 ModuleNotFoundError 收場。
+# 改成直接讀 scrapers/requirements.txt，讓它成為唯一的來源。
+COPY scrapers/requirements.txt /tmp/scraper-requirements.txt
+RUN pip3 install --no-cache-dir -r /tmp/scraper-requirements.txt --break-system-packages
 
 WORKDIR /app
 
