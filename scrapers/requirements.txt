@@ -1,7 +1,19 @@
-yfinance
-pandas
-psycopg2-binary
-requests
-beautifulsoup4
-python-dotenv
-lxml
+# 這份檔案原本七行全部沒有版本限制。三個爬蟲容器與 backend 容器都照它安裝，
+# 所以每一次重建映像檔都會拿到當下 PyPI 上的最新版——包含有破壞性變更的版本，
+# 也包含萬一發布帳號被入侵而放上去的版本，過程中沒有人需要按下同意。
+#
+# 下限取自 2026-08-23 在 node:24-alpine 映像檔裡實際安裝到、並確認
+# stock_scraper.py 匯入成功的版本；上限擋在下一個主版本。
+#
+# 特別注意 pandas：現在解析到的是 3.0.5。pandas 3.0 有寫時複製與字串 dtype
+# 等破壞性變更，而爬蟲用到 data.xs(..., level=1, axis=1) 與 iterrows()。
+# 這不是這次改動造成的——沒有版本限制時它本來就已經在裝 3.x 了；釘住只是讓
+# 它變成一個看得見的狀態。要往 4.0 走之前請先實際跑一次抓取並檢查寫進資料庫
+# 的數字對不對。
+yfinance>=1.6.0,<2.0
+pandas>=3.0.5,<4.0
+psycopg2-binary>=2.9.12,<3.0
+requests>=2.34.2,<3.0
+beautifulsoup4>=4.15.0,<5.0
+python-dotenv>=1.2.3,<2.0
+lxml>=6.1.2,<7.0

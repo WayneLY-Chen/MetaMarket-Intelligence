@@ -1,5 +1,7 @@
 # Build stage
-FROM node:18-alpine as build
+# 同 backend/Dockerfile：Node 18 已結束維護。這裡只是建置階段，產物會被複製到
+# nginx 映像檔裡，所以換版本不影響最後跑起來的東西。
+FROM node:24-alpine AS build
 
 WORKDIR /app
 
