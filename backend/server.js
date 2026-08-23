@@ -132,7 +132,8 @@ app.get('/api/v1/stocks/trend', async (req, res) => {
     const result = await pool.query(query, params);
     res.json(result.rows);
   } catch (err) {
-    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: err.message } });
+    console.error(err);
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } });
   }
 });
 
@@ -153,7 +154,8 @@ app.get('/api/v1/housing/average-price', async (req, res) => {
     const result = await pool.query(query, params);
     res.json(result.rows);
   } catch (err) {
-    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: err.message } });
+    console.error(err);
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } });
   }
 });
 
@@ -163,7 +165,8 @@ app.get('/api/v1/gold/trend', async (req, res) => {
     const result = await pool.query('SELECT * FROM gold_prices ORDER BY trade_date ASC LIMIT 30');
     res.json(result.rows);
   } catch (err) {
-    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: err.message } });
+    console.error(err);
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } });
   }
 });
 
@@ -179,7 +182,8 @@ app.get('/api/v1/currencies/latest', async (req, res) => {
     `);
     res.json(result.rows);
   } catch (err) {
-    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: err.message } });
+    console.error(err);
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } });
   }
 });
 
@@ -210,7 +214,8 @@ app.get('/api/v1/dashboard/overview', async (req, res) => {
       currencies: currencies.rows
     });
   } catch (err) {
-    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: err.message } });
+    console.error(err);
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } });
   }
 });
 
